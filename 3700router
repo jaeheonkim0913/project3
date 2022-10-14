@@ -1,12 +1,23 @@
-#!/usr/bin/env -S python3 -u
+#!/usr/bin/env python3
 
-import argparse, socket, time, json, select, struct, sys, math
+import argparse
+import copy
+import socket
+import time
+import json
+import select
+import struct
+import sys
+import math
+
 
 class Router:
 
     relations = {}
     sockets = {}
     ports = {}
+    routingTable = {}
+    routingTableLog = []
 
     def __init__(self, asn, connections):
         print("Router at AS %s starting up" % asn)
@@ -14,11 +25,13 @@ class Router:
         for relationship in connections:
             port, neighbor, relation = relationship.split("-")
 
-            self.sockets[neighbor] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sockets[neighbor] = socket.socket(
+                socket.AF_INET, socket.SOCK_DGRAM)
             self.sockets[neighbor].bind(('localhost', 0))
             self.ports[neighbor] = int(port)
             self.relations[neighbor] = relation
-            self.send(neighbor, json.dumps({ "type": "handshake", "src": self.our_addr(neighbor), "dst": neighbor, "msg": {}  }))
+            self.send(neighbor, json.dumps({"type": "handshake", "src": self.our_addr(
+                neighbor), "dst": neighbor, "msg": {}}))
 
     def our_addr(self, dst):
         quads = list(int(qdn) for qdn in dst.split('.'))
@@ -26,7 +39,40 @@ class Router:
         return "%d.%d.%d.%d" % (quads[0], quads[1], quads[2], quads[3])
 
     def send(self, network, message):
-        self.sockets[network].sendto(message.encode('utf-8'), ('localhost', self.ports[network]))
+        self.sockets[network].sendto(message.encode(
+            'utf-8'), ('localhost', self.ports[network]))
+
+    def updateTable(self, src, data):
+        self.routingTableLog.append(data)
+        if src not in self.routingTable:
+            self.routingTable[src] = []
+        self.routingTable[src].append(data['msg'])
+
+    def announce(self, src, packet, update):
+        def forwardMessage(dst):
+
+            if update:
+                tmpUpdate = copy.deepcopy(packet['msg'])
+                tmpUpdate['ASPath'].insert(0, self.asn)
+                tmpUpdate.pop('localpref', None)
+                tmpUpdate.pop('origin', None)
+                tmpUpdate.pop('selfOrigin', None)
+            else:
+                tmpUpdate = packet['msg']
+            packet = {
+                'src': self.our_addr(dst),
+                'dst': dst,
+                'type': 'update' if update else 'withdraw',
+                'msg': tmpUpdate
+
+
+            }
+            return json.dumps(packet)
+
+        for h in self.sockets.keys():
+            # second part assumed true
+            if h != src and (self.relations[h] == 'cust' or self.relations[src] == 'cust'):
+                self.send(h, forwardMessage(h))
 
     def run(self):
         while True:
@@ -41,12 +87,27 @@ class Router:
                 msg = k.decode('utf-8')
 
                 print("Received message '%s' from %s" % (msg, srcif))
+
+                data = json.loads(msg)
+                type = data['type']
+                if type == 'update':
+                    self.updateTable(srcif, data)
+                    self.announce(srcif, data, True)
+
+                elif type == 'withdraw':
+                    ...
+                elif type == 'data':
+                    ...
+                elif type == 'dump':
+                    ...
         return
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='route packets')
     parser.add_argument('asn', type=int, help="AS number of this router")
-    parser.add_argument('connections', metavar='connections', type=str, nargs='+', help="connections")
+    parser.add_argument('connections', metavar='connections',
+                        type=str, nargs='+', help="connections")
     args = parser.parse_args()
     router = Router(args.asn, args.connections)
     router.run()
