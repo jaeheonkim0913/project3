@@ -14,10 +14,7 @@ import math
 
 
 def ipToBin(ip: str) -> str:
-    tmp = ip.split('.')
-    for x in tmp:
-        format(int(x), '08b')
-    return ''.join(list(tmp))
+    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ipAddr.split('.'))))
 
 
 def binToIp(bin: str):
@@ -173,7 +170,6 @@ class Router:
                 return best[0]
             # best origin, IGP>EGP>UNK
             IGPOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
-
             EGPOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
             UNKOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
 
