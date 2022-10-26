@@ -104,7 +104,7 @@ class Router:
         self.routingTable[data['src']] = updateMsg
         self.aggregate(target=data['src'])
 
-    def forwardData(self, src, packet):
+    def sendData(self, src, packet):
         # Match the destination network prefix with all entries in the routing table
         def matchPrefix(dst):
             matches = []
@@ -177,7 +177,7 @@ class Router:
         # Compose a message that notifies the sender our router cannot route the message
         def composeNoRouteMessage():
             noRoutePacket = {
-                'src': self.routerOf(src),
+                'src': self.our_addr(src),
                 'dst': packet['src'],
                 'type': "no route",
                 "msg": {}
