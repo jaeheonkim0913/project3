@@ -172,13 +172,9 @@ class Router:
             bestOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
             if (bestOrigin):
                 best = bestOrigin
-            if len(best == 1):
-                return best[0]
             bestOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
             if (bestOrigin):
                 best = bestOrigin
-            if len(best == 1):
-                return best[0]
             bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
             if (bestOrigin):
                 best = bestOrigin
