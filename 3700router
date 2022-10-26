@@ -165,28 +165,24 @@ class Router:
             if len(best) == 1:
                 return best
             # best origin, IGP>EGP>UNK
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
+            IGPOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
+
+            EGPOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
+
+            UNKOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
+
+            if IGPOrigin:
+                best = IGPOrigin
+            elif EGPOrigin:
+                best = EGPOrigin
+            elif UNKOrigin:
+                best = UNKOrigin
+
+            if len(best) == 1:
                 return best
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
-                return best
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
-                return best
+
             # entry neighbor with lowest IP address
-            lowIP = best[0][0]
-            for x in best:
-                lowIP = min(lowIP, x[0])
-            for x in best:
-                if (lowIP == x[0]):
-                    return x
+            return min(best, key=lambda x: x[0])
         dst = data['dst']
 
         def noRoute():
