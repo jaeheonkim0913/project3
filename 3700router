@@ -169,15 +169,15 @@ class Router:
             if len(best) == 1:
                 return best[0]
             # best origin, IGP>EGP>UNK
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
-            if (bestOrigin):
-                best = bestOrigin
+            IGPOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
+            if (IGPOrigin):
+                best = IGPOrigin
+            EGPOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
+            if (EGPOrigin):
+                best = EGPOrigin
+            UNKOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
+            if (UNKOrigin):
+                best = UNKOrigin
             if len(best) == 1:
                 return best[0]
             # entry neighbor with lowest IP address
