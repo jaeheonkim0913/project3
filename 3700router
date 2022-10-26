@@ -25,12 +25,11 @@ def ipToBin(ip: str) -> str:
 
 def binToIp(bin: str) -> str:
     x = 0
-    result = ''
+    result = []
     while x < 31:
-        result += str(int(bin[x:x+8], 2))
-        result += '.'
+        result.append(str(int(bin[x:x+8], 2)))
         x += 8
-    result = result[:len(result) - 2]
+    result = '.'.join(result)
     return result
 
 
