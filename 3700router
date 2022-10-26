@@ -223,7 +223,7 @@ class Router:
             "ASPath": entry[1]["ASPath"],
         }, expandRoutingTable(self.routingTable)))
         table = {
-            "src": self.routerOf(src),
+            "src": self.our_addr(src),
             "dst": src,
             "type": "table",
             "msg": data
