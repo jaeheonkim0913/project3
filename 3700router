@@ -19,7 +19,7 @@ def ipToBin(ip: str):
     #     for x in tmp:
     #         result += format(int(x), '08b')
     # return result
-    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ipAddr.split('.'))))
+    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ip.split('.'))))
 # convert 32bit to ip address
 
 
