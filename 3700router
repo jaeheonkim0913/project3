@@ -114,7 +114,7 @@ class Router:
                     netmsk = ipToBin(r['netmask'])
                     length = 0
                     for netmask, expect, actual in zip(netmsk, netwrk, dst):
-                        mask = int(mask)
+                        netmask = int(netmask)
                         expect = int(expect)
                         actual = int(actual)
                         if bool(netmask) and (expect == actual):
