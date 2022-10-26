@@ -207,11 +207,15 @@ class Router:
 
         # if neither dest or source is a customer, drop data
         if not findDest(destination):
-            self.send(src, noRoute())
-        elif (self.relations[destination] != 'cust' and self.relations[src] != 'cust'):
-            self.send(src, noRoute())
+            dst = src
+            msg = noRoute()
         else:
-            self.send(bestRoute(findDest(destination))[0], json.dumps(data))
+            dst = bestRoute(findDest(destination))[0]
+            msg = json.dumps(data)
+        if (self.relations[src] != 'cust' and self.relations[destination] != 'cust'):
+            dst = src
+            msg = noRoute()
+        self.send(dst, msg)
 
     def dump(self, src):
         def expandRoutingTable(routingTable):
