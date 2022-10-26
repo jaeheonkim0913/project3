@@ -4,23 +4,22 @@ import argparse
 import copy
 from itertools import combinations
 from operator import truediv
+from re import X
 import socket
-import time
 import json
 import select
-import struct
-import sys
-import math
-
 
 # convert ip address to 32-bit
-def ipToBin(ip: str) -> str:
-    result = ''
-    tmp = ip.split('.')
-    for x in tmp:
-        result += format(int(x), '08b')
-    return result
 
+
+def ipToBin(ip: str):
+    # result = ''
+    # tmp = ip.split('.')
+    # if tmp:
+    #     for x in tmp:
+    #         result += format(int(x), '08b')
+    # return result
+    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ipAddr.split('.'))))
 # convert 32bit to ip address
 
 
@@ -37,11 +36,17 @@ def binToIp(bin: str):
 
 class Router:
 
-    relations = {}
+    # sockets that the router is connected to
     sockets = {}
+    # available ports
     ports = {}
+    # routing table of the router
     routingTable = {}
+    # update log of routing table
     routingTableLog = []
+    # holds neighbor relationship information, can be customer, peer, etc.
+    relations = {}
+    # withdraw log
     withdrawLog = []
 
     def __init__(self, asn, connections):
@@ -69,17 +74,19 @@ class Router:
             'utf-8'), ('localhost', self.ports[network]))
 
     # updating forwarding table, and also saving a copy of data
+
     def updateTable(self, src, data):
         self.routingTableLog.append(data)
         if src not in self.routingTable:
             self.routingTable[src] = []
         self.routingTable[src].append(data['msg'])
+        # aggregate routing table
         self.aggregate()
 
     # handling route announcement messages
     def announce(self, src, data, update):
         def forwardMessage(dst):
-
+            # handles announcing of update or withdraw message
             if update:
                 tmpUpdate = copy.deepcopy(data['msg'])
                 tmpUpdate['ASPath'].insert(0, self.asn)
@@ -97,34 +104,42 @@ class Router:
             return json.dumps(packet)
 
         for h in self.sockets.keys():
-            # second part assumed true
+            # checks that they are customers, otherwise the announcement is not sent.
             if h != src and (self.relations[h] == 'cust' or self.relations[src] == 'cust'):
                 self.send(h, forwardMessage(h))
 
+    # handles withdrawing
+
     def withdraw(self, data):
+        # saves a copy of the revocation message,
         self.withdrawLog.append(data)
+
+        # remove revoked entries in routing table
         updateMsg = list(map(lambda update: update['msg'], list(
             filter(lambda update: update['src'] == data['src'], self.routingTableLog))))
         withdrawLists = list(map(lambda withdraw: withdraw['msg'], list(
             filter(lambda withdraw: withdraw['src'] == data['src'], self.withdrawLog))))
         withdraw = ([withdrawItem for srcWdList in withdrawLists
                      for withdrawItem in srcWdList])
+
         for withdrawNetwork, withdrawNetmask in map(lambda wdItem: wdItem.values(), withdraw):
+
             updateMsg = ([msg for msg in updateMsg
                           if msg['network'] != withdrawNetwork or msg['netmask'] != withdrawNetmask])
         self.routingTable[data['src']] = updateMsg
+        # aggregate table again
         self.aggregate(target=data['src'])
 
+    # handles sending data
     def sendData(self, src, data):
+        # find the possible destination(s) by iterating through entire routing table
         def findDest(destination):
             result = []
             for neighbor, route in self.routingTable.items():
                 for r in route:
-                    dst = ipToBin(destination)
-                    netwrk = ipToBin(r['network'])
-                    netmsk = ipToBin(r['netmask'])
                     length = 0
-                    for netmask, expect, actual in zip(netmsk, netwrk, dst):
+
+                    for netmask, expect, actual in zip(ipToBin(r['netmask']), ipToBin(r['network']), ipToBin(destination)):
                         netmask = int(netmask)
                         expect = int(expect)
                         actual = int(actual)
@@ -137,6 +152,7 @@ class Router:
                             break
             return result
 
+        # given routes, find the best route depending on conditions, funneling behavior.
         def bestRoute(routes):
             # longest prefix,
             longest = max(list(map(lambda x: x[1], routes)))
@@ -178,6 +194,7 @@ class Router:
 
         destination = data['dst']
 
+        # no route message used in the case that data cannot be sent.
         def noRoute():
             packet = {
                 'src': self.our_addr(src),
@@ -200,25 +217,27 @@ class Router:
             msg = noRoute()
         self.send(destination, msg)
 
+    # sends copy of routing table back if requested
     def dump(self, src):
+        # rewrite routing table, basically just making each route a single entry
         def expandRoutingTable(routingTable):
-            expanded = []
+            result = []
             for neighbor, routes in routingTable.items():
                 for route in routes:
-                    expanded.append((neighbor, route))
-            # The returned list consists of pairs of neighbor connection address and
-            # the route information
-            return expanded
+                    result.append((neighbor, route))
+            return result
 
-        data = list(map(lambda entry: {
-            "peer": entry[0],
-            "network": entry[1]["network"],
-            "netmask": entry[1]["netmask"],
-            "localpref": entry[1]["localpref"],
-            "origin": entry[1]["origin"],
-            "selfOrigin": entry[1]["selfOrigin"],
-            "ASPath": entry[1]["ASPath"],
-        }, expandRoutingTable(self.routingTable)))
+        data = []
+        for x in expandRoutingTable(self.routingTable):
+            data.append({
+                "peer": x[0],
+                "network": x[1]["network"],
+                "netmask": x[1]["netmask"],
+                "localpref": x[1]["localpref"],
+                "origin": x[1]["origin"],
+                "selfOrigin": x[1]["selfOrigin"],
+                "ASPath": x[1]["ASPath"],
+            })
         table = {
             "src": self.our_addr(src),
             "dst": src,
@@ -230,21 +249,24 @@ class Router:
 
     def aggregate(self, target=None):
 
+        # checks if there is a specific target for the aggregation, if not aggregate the entire routing table.
         if (target):
             aggregateTargets = [target]
         else:
             aggregateTargets = self.routingTable.keys()
+        # interate through every neighbor in available targets
         for neighbor in aggregateTargets:
             for i in range(len(self.routingTable[neighbor]) - 1):
                 flag = False
                 curRoutes = self.routingTable[neighbor]
+                # checks if the neighbors have same attributes
                 for (neighborOne, neighborTwo) in list(combinations(curRoutes, 2)):
                     if (neighborOne['origin'] == neighborTwo['origin']
                        and neighborOne['selfOrigin'] == neighborTwo['selfOrigin']
                        and neighborOne['localpref'] == neighborTwo['localpref']
                        and neighborOne['ASPath'] == neighborTwo['ASPath']
                        and neighborOne['netmask'] == neighborTwo['netmask']):
-                        # same prefix?
+                        # checks if neighbors are adjacent
                         tmp = ipToBin(neighborOne['netmask']).rfind('1')
                         if (ipToBin(neighborOne['network'])[:tmp] == ipToBin(neighborTwo['network'])[:tmp]):
                             netmaskNeighborOne = ipToBin(
@@ -265,6 +287,7 @@ class Router:
                                 'selfOrigin': neighborOne['selfOrigin'],
                                 'ASPath': neighborOne['ASPath'],
                             }
+                            # aggregate, add merged routs and remove old routes that are redundant.
                             self.routingTable[neighbor].append(result)
                             self.routingTable[neighbor].remove(neighborOne)
                             self.routingTable[neighbor].remove(neighborTwo)
@@ -289,6 +312,7 @@ class Router:
 
                 data = json.loads(msg)
                 type = data['type']
+                # checks given data's type. update, withdraw, data and dump
                 if type == 'update':
                     self.updateTable(srcif, data)
                     self.announce(srcif, data, True)
