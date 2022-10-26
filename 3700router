@@ -13,13 +13,13 @@ import select
 
 
 def ipToBin(ip: str):
-    # result = ''
-    # tmp = ip.split('.')
-    # if tmp:
-    #     for x in tmp:
-    #         result += format(int(x), '08b')
-    # return result
-    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ip.split('.'))))
+    result = ''
+    tmp = ip.split('.')
+
+    for x in tmp:
+        result += format(int(x), '08b')
+    return result
+
 # convert 32bit to ip address
 
 
@@ -138,8 +138,10 @@ class Router:
             for neighbor, route in self.routingTable.items():
                 for r in route:
                     length = 0
-
-                    for netmask, expect, actual in zip(ipToBin(r['netmask']), ipToBin(r['network']), ipToBin(destination)):
+                    netmsk = ipToBin(r['netmask'])
+                    ntwrk = ipToBin(r['network'])
+                    dst = ipToBin(destination)
+                    for netmask, expect, actual in zip(netmsk, ntwrk, dst):
                         netmask = int(netmask)
                         expect = int(expect)
                         actual = int(actual)
