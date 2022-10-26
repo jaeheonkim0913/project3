@@ -257,7 +257,7 @@ class Router:
                        and neighborOne['ASPath'] == neighborTwo['ASPath']
                        and neighborOne['netmask'] == neighborTwo['netmask']):
                         # same prefix?
-                        tmp = ipToBin(neighboroNE['network']).rfind('1')
+                        tmp = ipToBin(neighborOne['network']).rfind('1')
                         if (ipToBin(neighborOne['network'])[:tmp] == ipToBin(neighborTwo['network'])[:tmp]):
                             netmaskNeighborOne = ipToBin(
                                 neighborOne['netmask']).rfind('1')
