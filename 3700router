@@ -13,7 +13,7 @@ import sys
 import math
 
 
-def ipToBin(ip: str):
+def ipToBin(ip: str) -> str:
     tmp = ip.split('.')
     for x in tmp:
         format(int(x), '08b')
