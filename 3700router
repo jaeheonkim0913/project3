@@ -177,7 +177,7 @@ class Router:
         # Compose a message that notifies the sender our router cannot route the message
         def composeNoRouteMessage():
             noRoutePacket = {
-                'src': self.routerOf(src),
+                'src': self.our_addr(src),
                 'dst': packet['src'],
                 'type': "no route",
                 "msg": {}
