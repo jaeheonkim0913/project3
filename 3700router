@@ -187,7 +187,7 @@ class Router:
             for x in best:
                 if (lowIP == x[0]):
                     return x
-        destination = data['dst']
+        dst = data['dst']
 
         def noRoute():
             packet = {
@@ -196,20 +196,20 @@ class Router:
                 'type': 'no route',
                 'msg': {},
             }
-            packet = json.dumps(packet)
-            return packet
+
+            return json.dumps(packet)
 
         # if neither dest or source is a customer, drop data
-        if not findDest(destination):
-            destination = src
+        if not findDest(dst):
+            dst = src
             msg = noRoute()
         else:
-            destination = bestRoute(findDest(destination))[0]
+            dst = bestRoute(findDest(dst))[0]
             msg = json.dumps(data)
-        if (self.relations[src] != 'cust' and self.relations[destination] != 'cust'):
-            destination = src
+        if (self.relations[src] != 'cust' and self.relations[dst] != 'cust'):
+            dst = src
             msg = noRoute()
-        self.send(destination, msg)
+        self.send(dst, msg)
 
     def dump(self, src):
         def expandRoutingTable(routingTable):
