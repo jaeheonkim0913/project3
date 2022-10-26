@@ -13,6 +13,7 @@ import sys
 import math
 
 
+# convert ip address to 32-bit
 def ipToBin(ip: str) -> str:
     result = ''
     tmp = ip.split('.')
@@ -20,9 +21,18 @@ def ipToBin(ip: str) -> str:
         result += format(int(x), '08b')
     return result
 
+# convert 32bit to ip address
+
 
 def binToIp(bin: str):
-    return '.'.join(map(lambda tmp: str(int(tmp, 2)), [bin[i:i+8] for i in range(0, 31, 8)]))
+    x = 0
+    result = ''
+    while x < 31:
+        result += str(int(bin[x:x+8], 2))
+        result += '.'
+        x += 8
+    result = result[:len(result) - 2]
+    return result
 
 
 class Router:
