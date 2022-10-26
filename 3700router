@@ -14,10 +14,7 @@ import math
 
 
 def ipToBin(ip: str) -> str:
-    tmp = ip.split('.')
-    for x in tmp:
-        format(int(x), '08b')
-    return ''.join(list(tmp))
+    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ip.split('.'))))
 
 
 def binToIp(bin: str):
@@ -301,7 +298,6 @@ class Router:
                 msg = k.decode('utf-8')
 
                 print("Received message '%s' from %s" % (msg, srcif))
-
                 data = json.loads(msg)
                 type = data['type']
                 if type == 'update':
