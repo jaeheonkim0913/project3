@@ -12,14 +12,26 @@ import select
 # convert ip address to 32-bit
 
 
-def ipToBin(ipAddr: str) -> str:
-    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ipAddr.split('.'))))
+def ipToBin(ip: str) -> str:
+    result = ''
+    tmp = ip.split('.')
 
-# Convert a 32-bit string to its IPv4 representation
+    for x in tmp:
+        result += format(int(x), '08b')
+    return result
+
+# convert 32bit to ip address
 
 
-def binToIp(binAddr: str) -> str:
-    return '.'.join(map(lambda octa: str(int(octa, 2)), [binAddr[i:i+8] for i in range(0, 31, 8)]))
+def binToIp(bin: str) -> str:
+    x = 0
+    result = ''
+    while x < 31:
+        result += str(int(bin[x:x+8], 2))
+        result += '.'
+        x += 8
+    result = result[:len(result) - 2]
+    return result
 
 
 class Router:
