@@ -164,9 +164,7 @@ class Router:
             if len(best) == 1:
                 return best[0]
             # shortest aspath
-            shortest = best[0][2]['ASPath']
-            for x in best:
-                shortest = min(x[2]['ASPath'], best)
+            shortest = min(list(map(lambda x: len(x[2]['ASPath']), best)))
             best = list(filter(lambda x: x[2]['ASPath'] == shortest, best))
             if len(best) == 1:
                 return best[0]
