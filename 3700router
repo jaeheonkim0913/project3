@@ -14,7 +14,11 @@ import math
 
 
 def ipToBin(ip: str) -> str:
-    return ''.join(list(map(lambda quad: format(int(quad), '08b'), ip.split('.'))))
+    result = ''
+    tmp = ip.split('.')
+    for x in tmp:
+        result += format(int(x), '08b')
+    return result
 
 
 def binToIp(bin: str):
