@@ -2,6 +2,8 @@
 
 import argparse
 import copy
+from itertools import combinations
+from operator import truediv
 import socket
 import time
 import json
@@ -11,6 +13,17 @@ import sys
 import math
 
 
+def ipToBin(ip: str):
+    tmp = ip.split('.')
+    for x in tmp:
+        format(int(x), '08b')
+    return ''.join(list(tmp))
+
+
+def binToIp(bin: str):
+    return '.'.join(map(lambda tmp: str(int(tmp, 2)), [bin[i:i+8] for i in range(0, 31, 8)]))
+
+
 class Router:
 
     relations = {}
@@ -18,6 +31,7 @@ class Router:
     ports = {}
     routingTable = {}
     routingTableLog = []
+    withdrawLog = []
 
     def __init__(self, asn, connections):
         print("Router at AS %s starting up" % asn)
@@ -30,6 +44,7 @@ class Router:
             self.sockets[neighbor].bind(('localhost', 0))
             self.ports[neighbor] = int(port)
             self.relations[neighbor] = relation
+            # handshake
             self.send(neighbor, json.dumps({"type": "handshake", "src": self.our_addr(
                 neighbor), "dst": neighbor, "msg": {}}))
 
@@ -42,30 +57,31 @@ class Router:
         self.sockets[network].sendto(message.encode(
             'utf-8'), ('localhost', self.ports[network]))
 
+    # updating forwarding table, and also saving a copy of data
     def updateTable(self, src, data):
         self.routingTableLog.append(data)
         if src not in self.routingTable:
             self.routingTable[src] = []
         self.routingTable[src].append(data['msg'])
+        self.aggregate()
 
-    def announce(self, src, packet, update):
+    # handling route announcement messages
+    def announce(self, src, data, update):
         def forwardMessage(dst):
 
             if update:
-                tmpUpdate = copy.deepcopy(packet['msg'])
+                tmpUpdate = copy.deepcopy(data['msg'])
                 tmpUpdate['ASPath'].insert(0, self.asn)
                 tmpUpdate.pop('localpref', None)
                 tmpUpdate.pop('origin', None)
                 tmpUpdate.pop('selfOrigin', None)
             else:
-                tmpUpdate = packet['msg']
+                tmpUpdate = data['msg']
             packet = {
                 'src': self.our_addr(dst),
                 'dst': dst,
                 'type': 'update' if update else 'withdraw',
                 'msg': tmpUpdate
-
-
             }
             return json.dumps(packet)
 
@@ -73,6 +89,193 @@ class Router:
             # second part assumed true
             if h != src and (self.relations[h] == 'cust' or self.relations[src] == 'cust'):
                 self.send(h, forwardMessage(h))
+
+    def withdraw(self, data):
+        self.withdrawLog.append(data)
+        updateMsg = list(map(lambda update: update['msg'], list(
+            filter(lambda update: update['src'] == data['src'], self.routingTableLog))))
+        withdrawLists = list(map(lambda withdraw: withdraw['msg'], list(
+            filter(lambda withdraw: withdraw['src'] == data['src'], self.withdrawLog))))
+        withdraw = ([withdrawItem for srcWdList in withdrawLists
+                     for withdrawItem in srcWdList])
+        for withdrawNetwork, withdrawNetmask in map(lambda wdItem: wdItem.values(), withdraw):
+            updateMsg = ([msg for msg in updateMsg
+                          if msg['network'] != withdrawNetwork or msg['netmask'] != withdrawNetmask])
+        self.routingTable[data['src']] = updateMsg
+        self.aggregate(target=data['src'])
+
+    def sendData(self, src, data):
+        def findDest(destination):
+            result = []
+            for neighbor, route in self.routingTable.items():
+                for r in route:
+                    length = 0
+                    for netmask, expect, actual in zip(ipToBin(route['netmask']), ipToBin(route['network']), ipToBin(destination)):
+                        if netmask and (expect == actual):
+                            length += 1
+                        elif netmask and (expect != actual):
+                            break
+                        else:
+                            result.append((neighbor, length, route))
+                            break
+            return result
+
+        def bestRoute(routes):
+            # longest prefix,
+
+            # count = 0
+            longest = routes[0][1]
+            for x in routes:
+                longest = max(x[1], longest)
+            # for x in routes:
+            #     if (x[1] == longest):
+            #         count+=1
+            # if count ==1:
+            #     for x in routes:
+            #         if(x[1] == longest):
+            #             return x
+            best = list(filter(lambda x: x[1] == longest, routes))
+            if len(best) == 1:
+                return best
+            # highest local pref,
+            localPref = best[0][2]['localpref']
+            for x in best:
+                localPref = max(x[2]['localpref'], localPref)
+            # for x in routes:
+            #     if (x[2]['localpref'] == localPref):
+            #         count+=1
+            # if count ==1:
+            #     for x in routes:
+            #         if(x[2]['localpref'] == localPref):
+            #             return x
+            best = list(filter(lambda x: x[2]['localpref'] == localPref, best))
+            if len(best) == 1:
+                return best
+            # selforigin as true
+            selfOrigin = list(filter(lambda x: x[2]['selfOrigin'], best))
+            if selfOrigin:
+                best = selfOrigin
+            if len(best) == 1:
+                return best
+            # shortest aspath
+            shortest = best[0][2]['ASPath']
+            for x in best:
+                shortest = min(x[2]['ASPath'], best)
+            best = list(filter(lambda x: x[2]['ASPath'] == shortest, best))
+            if len(best) == 1:
+                return best
+            # best origin, IGP>EGP>UNK
+            bestOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
+            if (bestOrigin):
+                best = bestOrigin
+            if len(best == 1):
+                return best
+            bestOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
+            if (bestOrigin):
+                best = bestOrigin
+            if len(best == 1):
+                return best
+            bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
+            if (bestOrigin):
+                best = bestOrigin
+            if len(best == 1):
+                return best
+            # entry neighbor with lowest IP address
+            lowIP = best[0][0]
+            for x in best:
+                lowIP = min(lowIP, x[0])
+            for x in best:
+                if (lowIP == x[0]):
+                    return x
+        destination = data['dst']
+
+        def noRoute():
+            packet = {
+                'src': self.our_addr(src),
+                'dst': data['src'],
+                'type': 'no route',
+                'msg': {},
+            }
+            packet = json.dumps(packet)
+            return packet
+
+        # if neither dest or source is a customer, drop data
+        if not findDest(destination):
+            self.send(src, noRoute())
+        elif (self.relations[destination] != 'cust' and self.relations[src] != 'cust'):
+            self.send(src, noRoute())
+        else:
+            self.send(bestRoute(findDest(destination))[0], json.dumps(data))
+
+    def dump(self, src):
+        def expandRoutingTable(routingTable):
+            expanded = []
+            for neighbor, routes in routingTable.items():
+                for route in routes:
+                    expanded.append((neighbor, route))
+            # The returned list consists of pairs of neighbor connection address and
+            # the route information
+            return expanded
+
+        data = list(map(lambda entry: {
+            "peer": entry[0],
+            "network": entry[1]["network"],
+            "netmask": entry[1]["netmask"],
+            "localpref": entry[1]["localpref"],
+            "origin": entry[1]["origin"],
+            "selfOrigin": entry[1]["selfOrigin"],
+            "ASPath": entry[1]["ASPath"],
+        }, expandRoutingTable(self.routingTable)))
+        table = {
+            "src": self.routerOf(src),
+            "dst": src,
+            "type": "table",
+            "msg": data
+        }
+        msg = json.dumps(table)
+        self.send(src, msg)
+
+    def aggregate(self, target=None):
+        aggregateTargets = self.routingTable.keys()
+        if (target != None):
+            aggregateTargets = [target]
+        for neighbor in aggregateTargets:
+            for i in range(len(self.routingTable[neighbor]) - 1):
+                flag = False
+                for (neighborOne, neighborTwo) in list(combinations(aggregateTargets, 2)):
+                    if (neighborOne['origin'] == neighborTwo['origin']
+                       and neighborOne['selfOrigin'] == neighborTwo['selfOrigin']
+                       and neighborOne['localpref'] == neighborTwo['localpref']
+                       and neighborOne['ASPath'] == neighborTwo['ASPath']
+                       and neighborOne['netmask'] == neighborTwo['netmask']):
+                        # same prefix?
+                        tmp = ipToBin(neighbor['network']).rfind('1')
+                        if (ipToBin(neighborOne['network'])[:tmp] == ipToBin(neighborTwo['network'])[:tmp]):
+                            netmaskNeighborOne = ipToBin(
+                                neighborOne['netmask']).rfind('1')
+                            aggregateBackToIP = binToIp(ipToBin(neighborOne['netmask'])[
+                                                        :netmaskNeighborOne] + '0' + ipToBin(neighborOne['netmask'])[netmaskNeighborOne + 1:])
+
+                            if neighborOne['network'] < neighborTwo['network']:
+                                lowNet = neighborOne['network']
+                            else:
+                                lowNet = neighborTwo['network']
+
+                            result = {
+                                'network': lowNet,
+                                'netmask': aggregateBackToIP,
+                                'localpref': neighborOne['localpref'],
+                                'origin': neighborOne['origin'],
+                                'selfOrigin': neighborOne['selfOrigin'],
+                                'ASPath': neighborOne['ASPath'],
+                            }
+                            self.routingTable[neighbor].append(result)
+                            self.routingTable[neighbor].remove(neighborOne)
+                            self.routingTable[neighbor].remove(neighborTwo)
+                            flag = True
+                            break
+                if not flag:
+                    break
 
     def run(self):
         while True:
@@ -93,13 +296,15 @@ class Router:
                 if type == 'update':
                     self.updateTable(srcif, data)
                     self.announce(srcif, data, True)
-
                 elif type == 'withdraw':
-                    ...
+                    self.withdraw(data)
+                    self.announce(srcif, data, False)
                 elif type == 'data':
-                    ...
+                    self.sendData(srcif, data)
                 elif type == 'dump':
-                    ...
+                    self.dump(srcif)
+                else:
+                    raise Exception("invalid data type error")
         return
 
 
