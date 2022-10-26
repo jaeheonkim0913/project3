@@ -172,12 +172,14 @@ class Router:
                 return best[0]
             # best origin, IGP>EGP>UNK
             IGPOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
+
+            EGPOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
+
+            UNKOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
             if (IGPOrigin):
                 best = IGPOrigin
-            EGPOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
             if (EGPOrigin):
                 best = EGPOrigin
-            UNKOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
             if (UNKOrigin):
                 best = UNKOrigin
             if len(best) == 1:
