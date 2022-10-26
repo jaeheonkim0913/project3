@@ -126,68 +126,47 @@ class Router:
                             break
             return result
 
-        def bestRoute(routes):
-            # longest prefix,
-
-            # count = 0
-            longest = routes[0][1]
-            for x in routes:
-                longest = max(x[1], longest)
-            # for x in routes:
-            #     if (x[1] == longest):
-            #         count+=1
-            # if count ==1:
-            #     for x in routes:
-            #         if(x[1] == longest):
-            #             return x
-            best = list(filter(lambda x: x[1] == longest, routes))
-            if len(best) == 1:
-                return best
-            # highest local pref,
-            localPref = best[0][2]['localpref']
-            for x in best:
-                localPref = max(x[2]['localpref'], localPref)
-            # for x in routes:
-            #     if (x[2]['localpref'] == localPref):
-            #         count+=1
-            # if count ==1:
-            #     for x in routes:
-            #         if(x[2]['localpref'] == localPref):
-            #             return x
-            best = list(filter(lambda x: x[2]['localpref'] == localPref, best))
-            if len(best) == 1:
-                return best
-            # selforigin as true
-            selfOrigin = list(filter(lambda x: x[2]['selfOrigin'], best))
-            if selfOrigin:
-                best = selfOrigin
-            if len(best) == 1:
-                return best
-            # shortest aspath
-            shortest = best[0][2]['ASPath']
-            for x in best:
-                shortest = min(x[2]['ASPath'], best)
-            best = list(filter(lambda x: x[2]['ASPath'] == shortest, best))
-            if len(best) == 1:
-                return best
-            # best origin, IGP>EGP>UNK
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "IGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
-                return best
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "EGP", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
-                return best
-            bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
-            if (bestOrigin):
-                best = bestOrigin
-            if len(best == 1):
-                return best
-            # entry neighbor with lowest IP address
-            return min(best, key=lambda x: x[0])
+        def bestRoute(matches):
+            # to find the logest prefix match(es)
+            longestMatchLength = max(list(map(lambda x: x[1], matches)))
+            bestRoutes = list(
+                filter(lambda x: x[1] == longestMatchLength, matches))
+            if len(bestRoutes) == 1:
+                return bestRoutes[0]
+            # to find highest local preference match(es)
+            bestLocalPref = max(
+                list(map(lambda x: x[2]['localpref'], bestRoutes)))
+            bestRoutes = list(
+                filter(lambda x: x[2]['localpref'] == bestLocalPref, bestRoutes))
+            if len(bestRoutes) == 1:
+                return bestRoutes[0]
+            # to find self origin routes
+            selfOriginRoutes = list(
+                filter(lambda x: x[2]['selfOrigin'], bestRoutes))
+            bestRoutes = selfOriginRoutes if selfOriginRoutes else bestRoutes
+            if len(bestRoutes) == 1:
+                return bestRoutes[0]
+            # to find routes that via shortest AS path
+            shortestASPath = min(
+                list(map(lambda x: len(x[2]['ASPath']), bestRoutes)))
+            bestRoutes = list(filter(lambda x: len(
+                x[2]['ASPath']) == shortestASPath, bestRoutes))
+            if len(bestRoutes) == 1:
+                return bestRoutes[0]
+            # to find routes that have preferred origin
+            igpRoutes = list(
+                filter(lambda x: x[2]['origin'] == "IGP", bestRoutes))
+            egpRoutes = list(
+                filter(lambda x: x[2]['origin'] == "EGP", bestRoutes))
+            unkRoutes = list(
+                filter(lambda x: x[2]['origin'] == "UNK", bestRoutes))
+            # let best routes be the first non-empty preferred list
+            bestRoutes = igpRoutes if igpRoutes else (
+                egpRoutes if egpRoutes else unkRoutes)
+            if len(bestRoutes) == 1:
+                return bestRoutes[0]
+            # default fall back to find the lowest neighbor IP address
+            return min(bestRoutes, key=lambda x: x[0])
         destination = data['dst']
 
         def noRoute():
