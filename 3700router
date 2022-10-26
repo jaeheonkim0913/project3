@@ -232,48 +232,60 @@ class Router:
         self.send(src, msg)
 
     def aggregate(self, target=None):
+        # Determine if two routes have the same localpref, origin, selfOrigin, and ASPath
+        def sameAttr(routeOne, routeTwo):
+            return (routeOne["localpref"] == routeTwo["localpref"]
+                    and routeOne["origin"] == routeTwo["origin"]
+                    and routeOne["selfOrigin"] == routeTwo["selfOrigin"]
+                    and routeOne["ASPath"] == routeTwo["ASPath"])
+        # Determine if two routes are adjacent: have the same netmask and have same network prefix
 
-        if (target):
-            aggregateTargets = [target]
-        else:
-            aggregateTargets = self.routingTable.keys()
-        for neighbor in aggregateTargets:
-            for i in range(len(self.routingTable[neighbor]) - 1):
-                flag = False
-                curRoutes = self.routingTable[neighbor]
-                for (neighborOne, neighborTwo) in list(combinations(curRoutes, 2)):
-                    if (neighborOne['origin'] == neighborTwo['origin']
-                       and neighborOne['selfOrigin'] == neighborTwo['selfOrigin']
-                       and neighborOne['localpref'] == neighborTwo['localpref']
-                       and neighborOne['ASPath'] == neighborTwo['ASPath']
-                       and neighborOne['netmask'] == neighborTwo['netmask']):
-                        # same prefix?
-                        tmp = ipToBin(neighborOne['netmask']).rfind('1')
-                        if (ipToBin(neighborOne['network'])[:tmp] == ipToBin(neighborTwo['network'])[:tmp]):
-                            netmaskNeighborOne = ipToBin(
-                                neighborOne['netmask']).rfind('1')
-                            aggregateBackToIP = binToIp(ipToBin(neighborOne['netmask'])[
-                                                        :netmaskNeighborOne] + '0' + ipToBin(neighborOne['netmask'])[netmaskNeighborOne + 1:])
+        def adjacentRoutes(routeOne, routeTwo):
+            if routeOne['netmask'] != routeTwo['netmask']:
+                return False
+            netMskBin = ipToBin(routeOne['netmask'])
+            routeOneNwBin = ipToBin(routeOne['network'])
+            routeTwoNwBin = ipToBin(routeTwo['network'])
+            diffPos = routeOneNwBin.rfind('1')
+            return routeOneNwBin[:diffPos] == routeTwoNwBin[: diffPos]
 
-                            if neighborOne['network'] < neighborTwo['network']:
-                                lowNet = neighborOne['network']
-                            else:
-                                lowNet = neighborTwo['network']
-
-                            result = {
-                                'network': lowNet,
-                                'netmask': aggregateBackToIP,
-                                'localpref': neighborOne['localpref'],
-                                'origin': neighborOne['origin'],
-                                'selfOrigin': neighborOne['selfOrigin'],
-                                'ASPath': neighborOne['ASPath'],
-                            }
-                            self.routingTable[neighbor].append(result)
-                            self.routingTable[neighbor].remove(neighborOne)
-                            self.routingTable[neighbor].remove(neighborTwo)
-                            flag = True
-                            break
-                if not flag:
+        # if no specific aggregate target, aggregate the entire routing table
+        targetList = [target] if target else self.routingTable.keys()
+        for currNeighbor in targetList:
+            # at most merge n - 1 times, n as the total number of the routing entries for a neighbor
+            maxMergeCount = len(self.routingTable[currNeighbor]) - 1
+            for _ in range(maxMergeCount):
+                currRoutesList = self.routingTable[currNeighbor]
+                traversed = True
+                # look into all possible combination of paired routes and see if any of them can
+                # be merged
+                for (routeOne, routeTwo) in list(combinations(currRoutesList, 2)):
+                    # two routes can be merged only if they have same attributes and adjacent
+                    if (sameAttr(routeOne, routeTwo) and adjacentRoutes(routeOne, routeTwo)):
+                        aggregatedNw = (routeOne['network'] if routeOne['network'] < routeTwo['network']
+                                        else routeTwo['network'])
+                        currMskBin = ipToBin(routeOne["netmask"])
+                        lastOne = currMskBin.rfind('1')
+                        aggregatedMskBin = currMskBin[:lastOne] + \
+                            '0' + currMskBin[lastOne + 1:]
+                        aggregatedMsk = binToIp(aggregatedMskBin)
+                        aggregatedRoute = {
+                            "network": aggregatedNw,
+                            "netmask": aggregatedMsk,
+                            "localpref": routeOne["localpref"],
+                            "origin": routeOne["origin"],
+                            "selfOrigin": routeOne["selfOrigin"],
+                            "ASPath": routeOne["ASPath"]
+                        }
+                        # add the merged route to current neighbor's route list, and remove old ones
+                        currRoutesList.append(aggregatedRoute)
+                        currRoutesList.remove(routeOne)
+                        currRoutesList.remove(routeTwo)
+                        traversed = False
+                        break
+                # The entire list is traversed without entering in the merging branch implies
+                # everything has been merged. We thus break current neighbor's merging iteration
+                if traversed:
                     break
 
     def run(self):
