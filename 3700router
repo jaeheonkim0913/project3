@@ -111,9 +111,12 @@ class Router:
                 for r in route:
                     length = 0
                     for netmask, expect, actual in zip(ipToBin(route['netmask']), ipToBin(route['network']), ipToBin(destination)):
-                        if netmask and (expect == actual):
+                        mask = int(mask)
+                        expect = int(expect)
+                        actual = int(actual)
+                        if bool(netmask) and (expect == actual):
                             length += 1
-                        elif netmask and (expect != actual):
+                        elif bool(netmask) and (expect != actual):
                             break
                         else:
                             result.append((neighbor, length, route))
