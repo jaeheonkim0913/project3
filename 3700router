@@ -178,7 +178,7 @@ class Router:
             bestOrigin = list(filter(lambda x: x[2]['origin'] == "UNK", best))
             if (bestOrigin):
                 best = bestOrigin
-            if len(best == 1):
+            if len(best) == 1:
                 return best[0]
             # entry neighbor with lowest IP address
             return min(best, key=lambda x: x[0])
