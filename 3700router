@@ -110,8 +110,8 @@ class Router:
             for neighbor, route in self.routingTable.items():
                 for r in route:
                     dst = ipToBin(destination)
-                    netwrk = ipToBin(route['network'])
-                    netmsk = ipToBin(route['netmask'])
+                    netwrk = ipToBin(r['network'])
+                    netmsk = ipToBin(r['netmask'])
                     length = 0
                     for netmask, expect, actual in zip(netmsk, netwrk, dst):
                         mask = int(mask)
