@@ -145,9 +145,10 @@ class Router:
             if len(best) == 1:
                 return best[0]
             # highest local pref,
-            localPref = best[0][2]['localpref']
-            for x in best:
-                localPref = max(x[2]['localpref'], localPref)
+            # localPref = best[0][2]['localpref']
+            # for x in best:
+            #     localPref = max(x[2]['localpref'], localPref)
+            localPref = max(list(map(lambda x: x[2]['localpref'], best)))
             # for x in routes:
             #     if (x[2]['localpref'] == localPref):
             #         count+=1
